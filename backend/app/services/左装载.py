@@ -1,9 +1,14 @@
 """左轨（渠道回执）装载。"""
+
 from __future__ import annotations
+
 import json, uuid
+
 from app.db import 连接
 from app.seed import 此刻
 from app.services import 校验
+from app.modules.左缺右留缓冲 import 服务 as 左缺
+
 
 def 装一批(体: dict) -> dict:
     批次 = 体.get("批次编号") or f"左批-{uuid.uuid4().hex[:8]}"
@@ -11,6 +16,7 @@ def 装一批(体: dict) -> dict:
     报告 = {"批次编号": 批次, "轨别": "左", "入流": 0, "跳过": 0, "驳回": 0, "明细": []}
     for e in 校验.校验批次(体):
         报告["明细"].append({"命运": "批次预检", "说明": e})
+    触键: list[str] = []
     conn = 连接()
     try:
         for ev in 事件:
@@ -44,8 +50,15 @@ def 装一批(体: dict) -> dict:
             )
             报告["入流"] += 1
             报告["明细"].append({"事件编号": 编号, "业务键": 键, "命运": "已入左"})
+            触键.append(键)
+        # 左到即回放：悬账回正 / 缓冲回放，与装载同事务。
+        回放 = 左缺.入库后回放(conn, list(dict.fromkeys(触键)))
+        复核 = 左缺.入库后复核(conn, list(dict.fromkeys(触键)))
+        报告["左缺回放"] = 回放
+        报告["左缺复核"] = 复核
         conn.execute(
-            "INSERT INTO 装载批次(编号,轨别,时刻,报告) VALUES (?,?,?,?)",
+            """INSERT INTO 装载批次(编号,轨别,时刻,报告) VALUES (?,?,?,?)
+               ON CONFLICT(编号) DO UPDATE SET 时刻=excluded.时刻, 报告=excluded.报告""",
             (批次, "左", 此刻(), json.dumps(报告, ensure_ascii=False)),
         )
         conn.commit()

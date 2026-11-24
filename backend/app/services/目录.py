@@ -67,5 +67,12 @@ def 概览() -> dict:
         "悬账数": conn.execute("SELECT COUNT(*) AS c FROM 悬账单").fetchone()["c"],
         "结论数": conn.execute("SELECT COUNT(*) AS c FROM 对拍结论").fetchone()["c"],
     }
+    # 左缺右留缓冲：模块表可能尚未建，缺表按 0 计。
+    try:
+        out["左缺待左"] = conn.execute(
+            "SELECT COUNT(*) AS c FROM 左缺处置 WHERE 状态='待左'"
+        ).fetchone()["c"]
+    except Exception:
+        out["左缺待左"] = 0
     conn.close()
     return out

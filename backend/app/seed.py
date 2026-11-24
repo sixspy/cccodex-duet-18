@@ -76,6 +76,10 @@ def 此刻() -> str:
 def 初始化库() -> None:
     conn = 连接()
     conn.executescript(建表)
+    # 左缺右留缓冲：模块独立表随启动就绪，仅右键入库即可立即处置。
+    from app.modules.左缺右留缓冲 import 表 as 左缺表
+
+    左缺表.建表(conn)
     if conn.execute("SELECT COUNT(*) AS c FROM 轨规").fetchone()["c"] == 0:
         for k, v in {
             "站名": "对拍",
@@ -84,6 +88,7 @@ def 初始化库() -> None:
             "骨架": "左轨装载→右轨装载→同键对齐落差→单边悬账→对拍结论",
             "皮": "支付渠道回执 vs 核心记账",
             "去皮": "双源键对齐管道",
+            "左缺形态": "悬账",
         }.items():
             conn.execute("INSERT INTO 轨规(键, 值) VALUES (?, ?)", (k, v))
     if conn.execute("SELECT COUNT(*) AS c FROM 源登记").fetchone()["c"] == 0:

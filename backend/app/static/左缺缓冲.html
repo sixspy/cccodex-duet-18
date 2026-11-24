@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>左缺缓冲 · 对拍</title>
+  <link rel="stylesheet" href="/styles.css"/>
+</head>
+<body>
+  <div class="壳">
+    <header class="顶栏">
+      <div class="顶左">
+        <div class="牌名">对拍</div>
+        <div class="牌骨">左轨装载 → 右轨装载 → 同键对齐落差 → 单边悬账 → 对拍结论</div>
+      </div>
+      <nav class="管线">
+          <a href="/">对拍台</a>
+          <a href="/左轨.html">左轨流水</a>
+          <a href="/右轨.html">右轨流水</a>
+          <a href="/对齐差.html">对齐差表</a>
+          <a href="/悬账单.html">悬账单</a>
+          <a href="/对拍结论.html">对拍结论</a>
+          <a href="/左缺缓冲.html" class="亮">左缺缓冲</a>
+          <a href="/源登记.html">源登记</a>
+          <a href="/轨规.html">轨规</a>
+      </nav>
+    </header>
+    <main class="主">
+
+      <section class="行卡">
+        <h1>左缺右留缓冲</h1>
+        <p class="说明">
+          仅右轨有键时立即择定一种形态：<b>悬账</b>（当场右悬，写悬账单、不写缓冲表，结论读悬集）
+          或 <b>缓冲</b>（右留缓冲物化包，写缓冲包、不写悬账，左到后回放对齐，读引用为包键）。
+          右轨命运与处置同事务；待左期间同一业务键不得悬与缓冲双落。
+        </p>
+        <div class="工具条">
+          <button class="次" id="编排">编排（回放 + 补处置）</button>
+          <button id="对拍">模块对拍</button>
+          <button class="次" id="刷">刷新</button>
+        </div>
+        <pre class="报" id="报"></pre>
+      </section>
+
+      <section class="行卡">
+        <h2>形态策略卡片</h2>
+        <div class="双栏" id="卡片"></div>
+      </section>
+
+      <section class="行卡">
+        <h2>处置列表</h2>
+        <div id="表"></div>
+      </section>
+
+      <section class="行卡">
+        <h2>处置详情</h2>
+        <div class="工具条">
+          <input id="键" placeholder="业务键，如 ORD-103" style="min-width:220px"/>
+          <button class="次" id="查">查看详情</button>
+        </div>
+        <div id="详情"></div>
+      </section>
+
+      <section class="行卡">
+        <h2>模块对拍记录</h2>
+        <div id="对拍表"></div>
+      </section>
+
+    </main>
+  </div>
+  <script src="/common.js"></script>
+  <script>
+(async () => {
+  const 报 = document.getElementById("报");
+
+  const 画卡片 = (o) => {
+    document.getElementById("卡片").innerHTML = o.卡片.map(c => `
+      <div class="行卡" style="border-color:${c.选中 ? "var(--accent)" : "var(--line)"}">
+        <h2>${c.形态} · ${c.标题} ${c.选中 ? '<span class="徽 绿">当前</span>' : ''}</h2>
+        <ul class="说明">
+          <li>写入：${c.写入}</li>
+          <li>读取：${c.读取}</li>
+          <li>右轨命运：${c.右命运}</li>
+          <li>左到后：${c.左到后}</li>
+        </ul>
+        <button class="${c.选中 ? "次" : ""}" data-形态="${c.形态}" ${c.选中 ? "disabled" : ""}>选中此形态</button>
+      </div>`).join("");
+    document.querySelectorAll("[data-形态]").forEach(b => {
+      b.onclick = async () => {
+        报.textContent = JSON.stringify(await post("/api/左缺/形态", { 形态: b.dataset.形态 }), null, 2);
+        await 刷新();
+      };
+    });
+  };
+
+  const 画列表 = async () => {
+    const rows = await get("/api/左缺/处置");
+    document.getElementById("表").innerHTML = 表(
+      ["业务键", "形态", "悬或缓冲键", "状态", "路径", "valid", "有悬行", "有缓冲包", "金额分", "右命运"],
+      rows.件,
+      r => `<td>${r.业务键}</td><td>${徽(r.形态)}</td><td>${r.悬或缓冲键}</td>
+        <td>${徽(r.状态)}</td><td>${r.路径 || "-"}</td>
+        <td>${徽(r.valid)}</td><td>${徽(r.有悬行)}</td><td>${徽(r.有缓冲包)}</td>
+        <td>${r.金额分}</td><td>${r.右命运 || "-"}</td>`
+    );
+    document.querySelectorAll("#表 tbody tr").forEach((tr, i) => {
+      tr.style.cursor = "pointer";
+      tr.onclick = () => 查详情(rows.件[i].业务键);
+    });
+  };
+
+  const 查详情 = async (键) => {
+    const d = await get("/api/左缺/处置/" + encodeURIComponent(键));
+    document.getElementById("键").value = 键;
+    document.getElementById("详情").innerHTML = `
+      <div class="标签行">
+        <span class="标签">业务键：${d.业务键}</span>
+        <span class="标签">悬或缓冲键：${d.悬或缓冲键}</span>
+        <span class="标签">valid：${d.valid}</span>
+        <span class="标签">形态：${d.形态}</span>
+        <span class="标签">状态：${d.状态}</span>
+        <span class="标签">路径：${d.路径 || "-"}</span>
+        <span class="标签">右命运：${(d.右命运 || []).join(",") || "-"}</span>
+      </div>
+      ${d.valid ? "" : `<p class="说明">valid 原因：${d.valid原因.join("；")}</p>`}
+      <div class="双栏 mt10">
+        <div><h2>悬行</h2><pre class="报">${JSON.stringify(d.悬行, null, 2)}</pre></div>
+        <div><h2>缓冲包</h2><pre class="报">${JSON.stringify(d.缓冲包, null, 2)}</pre></div>
+      </div>
+      <h2 class="mt10">对齐差</h2>
+      ${表(["差型","左金额分","右金额分","说明","时刻"], d.对齐差,
+        r => `<td>${徽(r.差型)}</td><td>${r.左金额分 ?? "-"}</td><td>${r.右金额分 ?? "-"}</td><td>${r.说明}</td><td>${r.时刻}</td>`)}
+    `;
+  };
+
+  const 画对拍 = async () => {
+    const rows = await get("/api/左缺/对拍");
+    document.getElementById("对拍表").innerHTML = 表(
+      ["编号","时刻","待悬","待缓","回正","回放","右悬","右缓","通过","说明"],
+      rows,
+      r => `<td>${r.编号}</td><td>${r.时刻}</td><td>${r.待悬}</td><td>${r.待缓}</td>
+        <td>${r.回正}</td><td>${r.回放}</td><td>${r.右悬}</td><td>${r.右缓}</td>
+        <td>${徽(r.是否通过)}</td><td>${r.说明}</td>`
+    );
+  };
+
+  const 刷新 = async () => {
+    画卡片(await get("/api/左缺/概览"));
+    await 画列表();
+    await 画对拍();
+  };
+
+  document.getElementById("编排").onclick = async () => {
+    报.textContent = JSON.stringify(await post("/api/左缺/编排"), null, 2);
+    await 刷新();
+  };
+  document.getElementById("对拍").onclick = async () => {
+    报.textContent = JSON.stringify(await post("/api/左缺/对拍"), null, 2);
+    await 刷新();
+  };
+  document.getElementById("刷").onclick = 刷新;
+  document.getElementById("查").onclick = () => {
+    const k = document.getElementById("键").value.trim();
+    if (k) 查详情(k).catch(e => { document.getElementById("详情").textContent = String(e); });
+  };
+
+  await 刷新();
+})();
+</script>
+</body>
+</html>
